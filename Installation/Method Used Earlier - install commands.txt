@@ -1,0 +1,94 @@
+# Docker Install
+
+sudo apt install -y ca-certificates curl gnupg lsb-release
+
+sudo mkdir -p /etc/apt/keyrings
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt update -y
+
+# Download DOCKER DEB https://desktop.docker.com/linux/main/amd64/docker-desktop-4.26.1-amd64.deb?utm_source=docker&utm_medium=webreferral&utm_campaign=docs-driven-download-linux-amd64&_gl=1*1h81i3i*_ga*MTQ0NDYzMzQ4OC4xNzAzNzU2MTc4*_ga_XJWPQMJYHQ*MTcwMzc1NjE3OC4xLjEuMTcwMzc1NjE3OS41OS4wLjA.
+
+cd Downloads/
+
+sudo apt-get install ./docker-desktop-4.26.1-amd64.deb
+
+cd ..
+
+# installing supportive packages
+
+sudo apt-get install git python3-pip
+sudo python3 -m pip install git-review
+
+# Updating python to python 3.11 (required for nodepool)
+
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt-get update
+
+
+apt list | grep python3.11
+
+
+sudo apt-get install python3.11
+
+
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 2
+
+
+sudo update-alternatives --config python3
+
+#zookeeper and nodepool
+
+sudo apt install zookeeper zookeeperd python3-pip
+
+sudo apt-get install -d $(bindep -b compile)
+
+# install nodepool
+sudo groupadd --system nodepool
+sudo useradd --system nodepool --home-dir /var/lib/nodepool --create-home -g nodepool
+ssh-keygen -t rsa -m PEM -b 2048 -f nodepool_rsa -N ''
+sudo mkdir /etc/nodepool/
+sudo mkdir /var/log/nodepool
+sudo chgrp -R nodepool /var/log/nodepool/
+sudo chmod 775 /var/log/nodepool/
+
+git clone https://opendev.org/zuul/nodepool
+pushd nodepool/
+sudo apt-get install -d $(bindep -b compile)
+sudo pip3 install .
+sudo cp etc/nodepool-launcher.service /etc/systemd/system/nodepool-launcher.service
+sudo chmod 0644 /etc/systemd/system/nodepool-launcher.service
+popd
+
+
+#Install zuul
+
+sudo groupadd --system zuul
+sudo useradd --system zuul --home-dir /var/lib/zuul --create-home -g zuul
+sudo mkdir /etc/zuul/
+sudo mkdir /var/log/zuul/
+sudo chown zuul:zuul /var/log/zuul/
+sudo mkdir /var/lib/zuul/.ssh
+sudo chmod 0700 /var/lib/zuul/.ssh
+sudo mv nodepool_rsa /var/lib/zuul/.ssh
+sudo chown -R zuul:zuul /var/lib/zuul/.ssh
+
+git clone https://opendev.org/zuul/zuul
+
+pushd zuul/
+sudo apt-get install -d $(bindep -b compile)
+tools/install-js-tools.sh
+sudo pip3 install .
+sudo zuul-manage-ansible
+
+sudo cp etc/zuul-scheduler.service /etc/systemd/system/zuul-scheduler.service
+sudo cp etc/zuul-executor.service /etc/systemd/system/zuul-executor.service
+sudo cp etc/zuul-web.service /etc/systemd/system/zuul-web.service
+sudo chmod 0644 /etc/systemd/system/zuul-scheduler.service
+sudo chmod 0644 /etc/systemd/system/zuul-executor.service
+sudo chmod 0644 /etc/systemd/system/zuul-web.service
+popd
